@@ -1,7 +1,22 @@
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullorEmpty()]
+    [string]$csv = "D:\OneDrive_Microsoft\OneDrive - Microsoft\MWA\PS\UsersToLicense.csv",
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullorEmpty()]
+    [string]$usermodel= 'test1@cubao365.com',
+    [Parameter(Mandatory = $false)]
+    [ValidateNotNullorEmpty()]
+    [string]$OutputLogs = [Environment]::GetFolderPath("Desktop") + "\Logs_" + [DateTime]::Now.ToString("yyyy_MM_dd_HH_mm_ss") + ".csv"
+)
+
+Add-Type -AssemblyName System.Windows.Forms
+
 $DesktopPath = [Environment]::GetFolderPath("Desktop")
-$outpath = 	$DesktopPath + "\assigned licenses.csv"
-$csv = "D:\OneDrive_Microsoft\OneDrive - Microsoft\MWA\PS\UsersToLicense.csv"
-$usermodel = 'test1@cubao365.com'
+#$outpath = 	$DesktopPath + "\Logs_" + [DateTime]::Now.ToString("yyyy_MM_dd_HH_mm_ss") + ".csv"
+#$csv = "D:\OneDrive_Microsoft\OneDrive - Microsoft\MWA\PS\UsersToLicense.csv"
+#$usermodel = 'test1@cubao365.com'
 
 #Install-Module Microsoft.Graph -Scope CurrentUser -AllowClobber -Force
 #Get-InstalledModule Microsoft.Graph
@@ -52,28 +67,87 @@ function Show-ProgressBar {
     Write-Host "`r$ProgressBar $PercentComplete% Complete, --> $($status)" -NoNewline
 }
 
+function Show-Notification {
+    [cmdletbinding()]
+    Param (
+        [string]
+        $ToastTitle,
+        [string]
+        [parameter(ValueFromPipeline)]
+        $ToastText
+    )
+
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+    $Template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+
+    $RawXml = [xml] $Template.GetXml()
+    ($RawXml.toast.visual.binding.text|where {$_.id -eq "1"}).AppendChild($RawXml.CreateTextNode($ToastTitle)) > $null
+    ($RawXml.toast.visual.binding.text|where {$_.id -eq "2"}).AppendChild($RawXml.CreateTextNode($ToastText)) > $null
+
+    $SerializedXml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $SerializedXml.LoadXml($RawXml.OuterXml)
+
+    $Toast = [Windows.UI.Notifications.ToastNotification]::new($SerializedXml)
+    $Toast.Tag = "PowerShell"
+    $Toast.Group = "PowerShell"
+    $Toast.ExpirationTime = [DateTimeOffset]::Now.AddMinutes(1)
+
+    $Notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("PowerShell")
+    $Notifier.Show($Toast);
+}
+
+function Show-MessageBoxWithButton {
+    param (
+        [string]$Message,
+        [string]$Title = "Message",
+        [string]$ButtonCaption = "OK",
+        [System.Windows.Forms.MessageBoxIcon]$Icon = [System.Windows.Forms.MessageBoxIcon]::Information
+    )
+
+    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, [System.Windows.Forms.MessageBoxButtons]::OKCancel, $Icon)
+
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        $selected = "OK"
+    } else {
+        $selected = "Cancel"
+    }
+
+    return $selected
+}
 
 Connect-MgGraph -Scopes "Directory.ReadWrite.All", "User.ReadWrite.All"
 Select-MgProfile -Name beta
 
-$usermodel = Get-MgUserLicenseDetail -UserId $usermodel
-#| Where SkuPartNumber -eq 'ENTERPRISEPREMIUM'
+try {
+    $userlic = Get-MgUserLicenseDetail -UserId $usermodel -ErrorAction Stop
+    If(!$userlic){
+        Write-Host "The user model doesn't have any license" -ForegroundColor Red -BackgroundColor Yellow
+        Exit
+    }
+}
+catch {
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Log -Message "Error: $($_.Exception.Message)" -Level ERROR -logfile $OutputLogs
+}
+
+
+$userlic = Get-MgUserLicenseDetail -UserId $usermodel
 if(Test-Path $csv){
     $userscvs = Import-Csv -Path $csv
 }else{
     Write-Host "No csv found" -ForegroundColor Red -BackgroundColor Yellow
+    Write-Log -Message "Error: $($_.Exception.Message)" -Level ERROR -logfile $OutputLogs
     Exit
 }
 
 $Totalusers = $userscvs.count
 $c = 0
-######## Thisss  ############
 
 $addLicenses = @()
 $licensescheck = @()
 
 ### Get All licenses assgned to the model user
-ForEach ($lic in $usermodel) {
+ForEach ($lic in $userlic) {
     $licensescheck += $lic.SkuId
     $addLicenses += @{
         "disabledPlans" = @($lic.ServicePlans | Where-Object { $_.ProvisioningStatus -eq "Disabled" }).ServicePlanId
@@ -93,17 +167,28 @@ ForEach($lischeck in $licensescheck){
     If($available -lt $Totalusers){
         $text = "There are not enough licenses, Sku: $($tenantLic.SkuPartNumber), available:$available, and you want to assign $Totalusers `n`n If the user already has the license, it will check if any services need to be disabled, and if so, it will apply the changes. `n
         If the user does not have a license, the script will assign licenses until there are available licenses for the desired SKU."
-        $UserResponse= [System.Windows.Forms.MessageBox]::Show($text , "Not enough licenses")
+        $selected = Show-MessageBoxWithButton -Title "Not enough licenses" -Message $text
+        If($selected -eq "Cancel"){
+            exit
+            Write-Log -Message "No enough licenses desided to Cancel" -Level FATAL -logfile $OutputLogs
+        }
+        #$UserResponse= [System.Windows.Forms.MessageBox]::Show($text , "Not enough licenses")
     }
 }
 
 ForEach($user in $userscvs){
     $c++
     #Write-Host "User $($user.UserPrincipalName)`n" -ForegroundColor Yellow -NoNewline
-    $null = Set-MgUserLicense -UserId $user.UserPrincipalName -AddLicenses $addLicenses -RemoveLicenses @()
-    $porc = [math]::Round(($c / $Totalusers) * 100)
-    Show-ProgressBar -PercentComplete $porc -status "$($user.UserPrincipalName)"
-    Start-Sleep -Milliseconds 10
+    try {
+        $porc = [math]::Round(($c / $Totalusers) * 100)
+        Show-ProgressBar -PercentComplete $porc -status "$($user.UserPrincipalName)"
+        Start-Sleep -Milliseconds 10
+        $null = Set-MgUserLicense -UserId $user.UserPrincipalName -AddLicenses $addLicenses -RemoveLicenses @() -ErrorAction Stop
+    }
+    catch {
+        Write-Log -Message "User: $($user.UserPrincipalName) Error: $($_.Exception.Message)" -Level ERROR -logfile $OutputLogs
+    }
+
 }
 Write-Host
 
