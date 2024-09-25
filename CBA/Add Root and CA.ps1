@@ -4,7 +4,7 @@ Connect-AzureAD
 
 Get-AzureADTrustedCertificateAuthority
 
-$cert=Get-Content -Encoding byte "C:\Users\john\Documents\savilltechrootca.cer"
+$cert=Get-Content -Encoding byte "C:\Users\alex\Documents\root.cer"
 $new_ca=New-Object -TypeName Microsoft.Open.AzureAD.Model.CertificateAuthorityInformation
 $new_ca.AuthorityType=0 #root CA
 $new_ca.TrustedCertificate=$cert
