@@ -5,7 +5,7 @@ param (
     [string]$csv = "D:\OneDrive_Microsoft\OneDrive - Microsoft\MWA\PS\UsersToLicense.csv",
     [Parameter(Mandatory = $true)]
     [ValidateNotNullorEmpty()]
-    [string]$usermodel= 'test1@cubao365.com',
+    [string]$usermodel= 'alextech2@alextech.us',
     [Parameter(Mandatory = $false)]
     [ValidateNotNullorEmpty()]
     [string]$OutputLogs = [Environment]::GetFolderPath("Desktop") + "\Logs_" + [DateTime]::Now.ToString("yyyy_MM_dd_HH_mm_ss") + ".csv"
@@ -116,8 +116,10 @@ function Show-MessageBoxWithButton {
 }
 
 Connect-MgGraph -Scopes "Directory.ReadWrite.All", "User.ReadWrite.All"
-Select-MgProfile -Name beta
+#Get-MgContext
+#Select-MgProfile -Name beta --> This is not used anymore
 
+#Validate if user model has a license
 try {
     $userlic = Get-MgUserLicenseDetail -UserId $usermodel -ErrorAction Stop
     If(!$userlic){
@@ -130,8 +132,9 @@ catch {
     Write-Log -Message "Error: $($_.Exception.Message)" -Level ERROR -logfile $OutputLogs
 }
 
+#$userlic = Get-MgUserLicenseDetail -UserId $usermodel
 
-$userlic = Get-MgUserLicenseDetail -UserId $usermodel
+# Import csv with users' UPN
 if(Test-Path $csv){
     $userscvs = Import-Csv -Path $csv
 }else{
