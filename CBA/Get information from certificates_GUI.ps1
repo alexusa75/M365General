@@ -5,14 +5,43 @@ Add-Type -AssemblyName System.Security
 # Create the main form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Certificate Information Viewer"
-$form.Size = New-Object System.Drawing.Size(900, 700)
+$form.Size = New-Object System.Drawing.Size(900, 900)
 $form.StartPosition = "CenterScreen"
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 10)
 $form.BackColor = [System.Drawing.Color]::WhiteSmoke
 
+# Create identity group box
+$identityGroupBox = New-Object System.Windows.Forms.GroupBox
+$identityGroupBox.Location = New-Object System.Drawing.Point(20, 20)
+$identityGroupBox.Size = New-Object System.Drawing.Size(840, 100)
+$identityGroupBox.Text = "Identity Information"
+
+# Create Principal Name label and textbox
+$principalNameLabel = New-Object System.Windows.Forms.Label
+$principalNameLabel.Location = New-Object System.Drawing.Point(20, 30)
+$principalNameLabel.Size = New-Object System.Drawing.Size(100, 23)
+$principalNameLabel.Text = "Principal Name:"
+
+$principalNameTextBox = New-Object System.Windows.Forms.TextBox
+$principalNameTextBox.Location = New-Object System.Drawing.Point(120, 30)
+$principalNameTextBox.Size = New-Object System.Drawing.Size(300, 23)
+
+# Create Email label and textbox
+$emailLabel = New-Object System.Windows.Forms.Label
+$emailLabel.Location = New-Object System.Drawing.Point(440, 30)
+$emailLabel.Size = New-Object System.Drawing.Size(50, 23)
+$emailLabel.Text = "Email:"
+
+$emailTextBox = New-Object System.Windows.Forms.TextBox
+$emailTextBox.Location = New-Object System.Drawing.Point(490, 30)
+$emailTextBox.Size = New-Object System.Drawing.Size(300, 23)
+
+# Add controls to identity group box
+$identityGroupBox.Controls.AddRange(@($principalNameLabel, $principalNameTextBox, $emailLabel, $emailTextBox))
+
 # Create store location group box
 $storeGroupBox = New-Object System.Windows.Forms.GroupBox
-$storeGroupBox.Location = New-Object System.Drawing.Point(20, 20)
+$storeGroupBox.Location = New-Object System.Drawing.Point(20, 130)
 $storeGroupBox.Size = New-Object System.Drawing.Size(840, 80)
 $storeGroupBox.Text = "Certificate Store Location"
 
@@ -26,7 +55,7 @@ $storeGroupBox.Controls.Add($storeComboBox)
 
 # Create certificates group box
 $certificatesGroupBox = New-Object System.Windows.Forms.GroupBox
-$certificatesGroupBox.Location = New-Object System.Drawing.Point(20, 110)
+$certificatesGroupBox.Location = New-Object System.Drawing.Point(20, 220)
 $certificatesGroupBox.Size = New-Object System.Drawing.Size(840, 200)
 $certificatesGroupBox.Text = "Available Certificates"
 
@@ -44,26 +73,49 @@ $certificatesGroupBox.Controls.Add($certificatesListView)
 
 # Create certificate details group box
 $detailsGroupBox = New-Object System.Windows.Forms.GroupBox
-$detailsGroupBox.Location = New-Object System.Drawing.Point(20, 320)
-$detailsGroupBox.Size = New-Object System.Drawing.Size(840, 320)
+$detailsGroupBox.Location = New-Object System.Drawing.Point(20, 430)
+$detailsGroupBox.Size = New-Object System.Drawing.Size(840, 200)
 $detailsGroupBox.Text = "Certificate Details"
 
 # Create certificate details text box
 $detailsTextBox = New-Object System.Windows.Forms.RichTextBox
 $detailsTextBox.Location = New-Object System.Drawing.Point(20, 30)
-$detailsTextBox.Size = New-Object System.Drawing.Size(800, 270)
+$detailsTextBox.Size = New-Object System.Drawing.Size(800, 150)
 $detailsTextBox.ReadOnly = $true
 $detailsTextBox.Font = New-Object System.Drawing.Font("Consolas", 10)
 $detailsTextBox.BackColor = [System.Drawing.Color]::White
 $detailsGroupBox.Controls.Add($detailsTextBox)
 
+# Create formatted info group box
+$formattedInfoGroupBox = New-Object System.Windows.Forms.GroupBox
+$formattedInfoGroupBox.Location = New-Object System.Drawing.Point(20, 640)
+$formattedInfoGroupBox.Size = New-Object System.Drawing.Size(840, 200)
+$formattedInfoGroupBox.Text = "Formatted Certificate Information"
+
+# Create formatted info text box
+$formattedInfoTextBox = New-Object System.Windows.Forms.RichTextBox
+$formattedInfoTextBox.Location = New-Object System.Drawing.Point(20, 30)
+$formattedInfoTextBox.Size = New-Object System.Drawing.Size(800, 150)
+$formattedInfoTextBox.ReadOnly = $true
+$formattedInfoTextBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+$formattedInfoTextBox.BackColor = [System.Drawing.Color]::White
+$formattedInfoGroupBox.Controls.Add($formattedInfoTextBox)
+
 # Add controls to form
-$form.Controls.AddRange(@($storeGroupBox, $certificatesGroupBox, $detailsGroupBox))
+$form.Controls.AddRange(@($identityGroupBox, $storeGroupBox, $certificatesGroupBox, $detailsGroupBox, $formattedInfoGroupBox))
+
+# Principal Name TextBox change event handler
+$principalNameTextBox_TextChanged = {
+    if (-not $emailTextBox.Modified) {
+        $emailTextBox.Text = $principalNameTextBox.Text
+    }
+}
 
 # Store location change event handler
 $storeComboBox_SelectedIndexChanged = {
     $certificatesListView.Items.Clear()
     $detailsTextBox.Clear()
+    $formattedInfoTextBox.Clear()
 
     $storeLocation = if ($storeComboBox.SelectedIndex -eq 0) {
         [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
@@ -106,56 +158,115 @@ $certificatesListView_SelectedIndexChanged = {
 
     $cert = $certificatesListView.SelectedItems[0].Tag
     $details = New-Object System.Text.StringBuilder
+    $formatted = New-Object System.Text.StringBuilder
 
-    # Format certificate details
-    $details.AppendLine("=== Basic Information ===`n")
+    # Basic Information
+    $details.AppendLine("=== Basic Information ===")
+    $details.AppendLine("")
     $details.AppendLine("Subject: $($cert.Subject)")
+    $details.AppendLine("")
     $details.AppendLine("Issuer: $($cert.Issuer)")
+    $details.AppendLine("")
     $details.AppendLine("Serial Number: $($cert.SerialNumber)")
+    $details.AppendLine("")
     $details.AppendLine("Valid From: $($cert.NotBefore.ToString('yyyy-MM-dd HH:mm:ss'))")
+    $details.AppendLine("")
     $details.AppendLine("Valid To: $($cert.NotAfter.ToString('yyyy-MM-dd HH:mm:ss'))")
+    $details.AppendLine("")
     $details.AppendLine("Thumbprint: $($cert.Thumbprint)")
+    $details.AppendLine("")
 
     # SHA1 Public Key Hash
     $sha1PublicKey = [System.Security.Cryptography.SHA1]::Create().ComputeHash($cert.PublicKey.EncodedKeyValue.RawData)
     $sha1PublicKeyString = [BitConverter]::ToString($sha1PublicKey) -replace '-'
-    $details.AppendLine("`nSHA1 Public Key Hash: $sha1PublicKeyString")
+    $details.AppendLine("SHA1 Public Key Hash: $sha1PublicKeyString")
+    $details.AppendLine("")
 
-    if ($cert.Extensions) {
-        $details.AppendLine("`n=== Extensions ===`n")
+    # Update details text box with bold attributes
+    $detailsTextBox.Text = $details.ToString()
+    $detailsTextBox.SelectAll()
+    $detailsTextBox.SelectionFont = New-Object System.Drawing.Font("Consolas", 10)
 
-        # Subject Key Identifier (SKI)
-        $skiExt = $cert.Extensions | Where-Object { $_.Oid.FriendlyName -eq 'Subject Key Identifier' }
-        if ($skiExt) {
-            $ski = $skiExt.Format($false)
-            $details.AppendLine("Subject Key Identifier (SKI): $($ski.Trim())")
-        }
+    # Make attribute names bold
+    $attributeNames = @(
+        "=== Basic Information ===",
+        "Subject:",
+        "Issuer:",
+        "Serial Number:",
+        "Valid From:",
+        "Valid To:",
+        "Thumbprint:",
+        "SHA1 Public Key Hash:"
+    )
 
-        # Subject Alternative Names (SANs)
-        $sanExt = $cert.Extensions | Where-Object { $_.Oid.FriendlyName -eq 'Subject Alternative Name' }
-        if ($sanExt) {
-            $san = $sanExt.Format($true)
-            $details.AppendLine("`nSubject Alternative Name (SAN):")
-            $details.AppendLine($san.Trim())
-        }
-
-        # Certificate Policies
-        $policyExt = $cert.Extensions | Where-Object { $_.Oid.FriendlyName -eq 'Certificate Policies' }
-        if ($policyExt) {
-            $details.AppendLine("`nCertificate Policies:")
-            $policies = $policyExt.Format($true)
-            foreach ($line in ($policies -split "`n")) {
-                if ($line -match 'Policy Identifier=(.+)') {
-                    $details.AppendLine("    Policy OID: $($matches[1])")
-                }
-            }
+    foreach ($attr in $attributeNames) {
+        $pos = $detailsTextBox.Find($attr, [System.Windows.Forms.RichTextBoxFinds]::MatchCase)
+        if ($pos -ge 0) {
+            $detailsTextBox.SelectionStart = $pos
+            $detailsTextBox.SelectionLength = $attr.Length
+            $detailsTextBox.SelectionFont = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Bold)
         }
     }
 
-    $detailsTextBox.Text = $details.ToString()
+    # Formatted Information with spacing
+    if ($principalNameTextBox.Text) {
+        $formatted.AppendLine("PrincipalName:X509:<PN>$($principalNameTextBox.Text)")
+        $formatted.AppendLine("")
+    }
+    if ($emailTextBox.Text) {
+        $formatted.AppendLine("RFC822Name:X509:<RFC822>$($emailTextBox.Text)")
+        $formatted.AppendLine("")
+    }
+
+    # Format subject and issuer DN
+    $formatted.AppendLine("IssuerAndSubject:X509:<I>$($cert.Issuer)<S>$($cert.Subject)")
+    $formatted.AppendLine("")
+    $formatted.AppendLine("Subject:X509:<S>$($cert.Subject)")
+    $formatted.AppendLine("")
+
+    # Get SKI if available
+    $skiExt = $cert.Extensions | Where-Object { $_.Oid.FriendlyName -eq 'Subject Key Identifier' }
+    if ($skiExt) {
+        $ski = ($skiExt.Format($false) -replace '\s+', '')
+        $formatted.AppendLine("SKI:X509:<SKI>$ski")
+        $formatted.AppendLine("")
+    }
+
+    # Add SHA1 Public Key
+    $formatted.AppendLine("SHA1PublicKey:X509:<SHA1-PUKEY>$sha1PublicKeyString")
+    $formatted.AppendLine("")
+
+    # Add Issuer and Serial Number
+    $formatted.AppendLine("IssuerAndSerialNumber:X509:<I>$($cert.Issuer)<SR>$($cert.SerialNumber)")
+
+    # Update formatted info text box with bold attributes
+    $formattedInfoTextBox.Text = $formatted.ToString()
+    $formattedInfoTextBox.SelectAll()
+    $formattedInfoTextBox.SelectionFont = New-Object System.Drawing.Font("Consolas", 10)
+
+    # Make formatted attribute names bold
+    $formattedAttrNames = @(
+        "PrincipalName:",
+        "RFC822Name:",
+        "IssuerAndSubject:",
+        "Subject:",
+        "SKI:",
+        "SHA1PublicKey:",
+        "IssuerAndSerialNumber:"
+    )
+
+    foreach ($attr in $formattedAttrNames) {
+        $pos = $formattedInfoTextBox.Find($attr, [System.Windows.Forms.RichTextBoxFinds]::MatchCase)
+        if ($pos -ge 0) {
+            $formattedInfoTextBox.SelectionStart = $pos
+            $formattedInfoTextBox.SelectionLength = $attr.Length
+            $formattedInfoTextBox.SelectionFont = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Bold)
+        }
+    }
 }
 
 # Add event handlers
+$principalNameTextBox.Add_TextChanged($principalNameTextBox_TextChanged)
 $storeComboBox.Add_SelectedIndexChanged($storeComboBox_SelectedIndexChanged)
 $certificatesListView.Add_SelectedIndexChanged($certificatesListView_SelectedIndexChanged)
 
