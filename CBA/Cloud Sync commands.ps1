@@ -7,3 +7,7 @@ Get-MgDirectoryOnPremiseSynchronization | fl
 (Get-MgDirectoryOnPremiseSynchronization).Features | fl
 ((Get-MgDirectoryOnPremiseSynchronization).Configuration).AccidentalDeletionPrevention
 
+
+
+
+
