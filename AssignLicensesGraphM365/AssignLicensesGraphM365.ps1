@@ -115,7 +115,7 @@ function Show-MessageBoxWithButton {
     return $selected
 }
 
-Connect-MgGraph -Scopes "Directory.ReadWrite.All", "User.ReadWrite.All"
+Connect-MgGraph -Scopes "Directory.ReadWrite.All", "User.ReadWrite.All" -NoWelcome
 #Get-MgContext
 #Select-MgProfile -Name beta --> This is not used anymore
 
@@ -193,8 +193,6 @@ ForEach($user in $userscvs){
     }
 
 }
-Write-Host
-
 
 
 <#
@@ -245,6 +243,29 @@ Set-MgUserLicense -UserId John.West@office365itpros.com -BodyParameter $LicenseP
 
 Set-MgUserLicense -UserId "test2@cubao365.com" -AddLicenses $addLicenses -RemoveLicenses @()
 
+
+# Remove and Assign licenses at the same time
+
+$LicenseParams = @{
+    AddLicenses = @(
+        @{
+            DisabledPlans = @()
+            SkuId = "b05e124f-c7cc-45a0-a6aa-8cf78c946968"
+        }
+        @{
+            DisabledPlans = @()
+            SkuId = "dcb1a3ae-b33f-4487-846a-a640262fadf4"
+        }
+    )
+    RemoveLicenses = @(
+        "efccb6f7-5641-4e0e-bd10-b4976e1bf68e"
+    )
+}
+Set-MgUserLicense -UserId "deleteme2@alextech.us" -BodyParameter $LicenseParams
+
+
+
+
 Get-MgSubscribedSku -All | Where SkuPartNumber -eq 'ENTERPRISEPREMIUM' |  select -ExpandProperty ServicePlans
 
 
@@ -256,3 +277,4 @@ $userDisabledPlans = $usermodel.ServicePlans | `
 ($usermodel[0].ServicePlans | where ProvisioningStatus -eq "Disabled" | select ServicePlanId).ServicePlanId
 
 #>
+
